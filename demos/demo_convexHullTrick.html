@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Convex Hull Trick (CHT) Visualizer</title>
+    <style>
+        :root {
+            --bg: #1e1e2e;
+            --surface: #313244;
+            --surface-alt: #45475a;
+            --text: #cdd6f4;
+            --text-muted: #a6adc8;
+            --primary: #89b4fa;      /* Default lines / Blue */
+            --optimal: #a6e3a1;      /* Active/Queried / Green */
+            --redundant: #f38ba8;    /* Bad line / Red */
+            --obsolete: #fab387;     /* Obsolete line / Orange */
+            --query: #cba6f7;        /* Query indicator / Purple */
+            --font-main: 'Segoe UI', system-ui, sans-serif;
+            --font-code: 'Courier New', Courier, monospace;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: var(--font-main);
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        header {
+            padding: 15px 25px;
+            background-color: var(--surface);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid var(--surface-alt);
+            z-index: 10;
+        }
+
+        header h1 { font-size: 1.2rem; font-weight: 600; color: var(--primary); }
+
+        .controls { display: flex; gap: 10px; align-items: center; }
+
+        button {
+            background-color: var(--surface-alt);
+            color: var(--text);
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: 0.2s;
+            font-size: 0.9rem;
+        }
+        button:hover { background-color: var(--primary); color: var(--bg); }
+        button.play { background-color: var(--optimal); color: var(--bg); }
+        button.play:hover { filter: brightness(1.1); }
+        button.outline { background-color: transparent; border: 1px solid var(--text-muted); color: var(--text-muted); }
+        button.outline:hover { background-color: var(--text-muted); color: var(--bg); }
+
+        .slider-group { display: flex; align-items: center; gap: 10px; font-size: 0.9rem; margin-right: 10px;}
+
+        /* Custom Input Panel */
+        .custom-input-panel {
+            background-color: var(--surface);
+            padding: 15px 25px;
+            border-bottom: 2px solid var(--surface-alt);
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            transition: max-height 0.3s ease-in-out, padding 0.3s ease-in-out;
+            max-height: 200px;
+            overflow: hidden;
+        }
+        .custom-input-panel.hidden {
+            max-height: 0;
+            padding-top: 0;
+            padding-bottom: 0;
+            border-bottom: none;
+        }
+        .input-row { display: flex; gap: 20px; width: 100%; align-items: center; }
+        .input-group { display: flex; align-items: center; gap: 10px; flex: 1; }
+        .input-group label { font-size: 0.9rem; color: var(--text-muted); white-space: nowrap; width: 180px;}
+        .input-group input {
+            flex: 1;
+            background-color: var(--bg);
+            border: 1px solid var(--surface-alt);
+            color: var(--text);
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-family: var(--font-code);
+            font-size: 0.95rem;
+        }
+        .input-group input:focus { outline: 1px solid var(--primary); }
+
+        .main-container {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            flex: 1;
+            gap: 20px;
+            padding: 20px;
+            overflow: hidden;
+        }
+
+        .left-panel, .right-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        /* Canvas */
+        .canvas-container {
+            flex: 1;
+            background-color: var(--surface);
+            border-radius: 12px;
+            border: 1px solid var(--surface-alt);
+            position: relative;
+            overflow: hidden;
+        }
+        canvas { width: 100%; height: 100%; display: block; }
+
+        /* Deque UI */
+        .deque-container {
+            height: 80px;
+            background-color: var(--surface);
+            border-radius: 12px;
+            border: 1px solid var(--surface-alt);
+            display: flex;
+            align-items: center;
+            padding: 10px;
+            gap: 10px;
+            overflow-x: auto;
+        }
+        .deque-container span.label { font-weight: bold; color: var(--text-muted); margin-right: 10px; }
+        
+        .line-card {
+            background-color: var(--surface-alt);
+            padding: 8px 12px;
+            border-radius: 6px;
+            border-left: 4px solid var(--primary);
+            font-family: var(--font-code);
+            font-size: 0.85rem;
+            white-space: nowrap;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            transition: 0.3s;
+        }
+        .line-card strong { font-size: 0.95rem; }
+
+        /* Log Panel */
+        .log-panel {
+            min-height: 80px;
+            background-color: var(--surface);
+            border-radius: 12px;
+            border: 1px solid var(--surface-alt);
+            padding: 15px;
+            font-size: 1rem;
+            display: flex;
+            align-items: center;
+        }
+        .log-panel span { color: var(--query); font-weight: bold; }
+
+        /* Pseudocode & Stats */
+        .pseudocode-panel, .stats-panel {
+            background-color: var(--surface);
+            border-radius: 12px;
+            border: 1px solid var(--surface-alt);
+            padding: 15px;
+        }
+        
+        .pseudocode-panel {
+            flex: 1;
+            font-family: var(--font-code);
+            font-size: 0.85rem;
+            line-height: 1.5;
+            overflow-y: auto;
+        }
+        .pseudocode-panel .code-line {
+            padding: 4px 8px;
+            border-radius: 4px;
+            border-left: 3px solid transparent;
+            transition: 0.2s;
+            margin-bottom: 2px;
+            white-space: pre-wrap;
+        }
+        .code-line.active {
+            background-color: rgba(203, 166, 247, 0.15);
+            border-left-color: var(--query);
+            color: #fff;
+        }
+
+        .stats-panel {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            font-size: 0.9rem;
+        }
+        .stat-box {
+            background-color: var(--surface-alt);
+            padding: 12px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .stat-box .val {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--primary);
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>Convex Hull Trick (CHT) Visualizer</h1>
+    <div class="controls">
+        <button id="btnToggleInput" class="outline">Edit Data</button>
+        <div class="slider-group">
+            <label for="speedSlider">Speed:</label>
+            <input type="range" id="speedSlider" min="100" max="2500" value="1000" dir="rtl">
+        </div>
+        <button id="btnPlay" class="play">Start Visualization</button>
+        <button id="btnNext">Step (Space)</button>
+        <button id="btnReset">Random Data</button>
+    </div>
+</header>
+
+<!-- CUSTOM INPUT PANEL -->
+<div class="custom-input-panel hidden" id="customInputPanel">
+    <div style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 5px;">
+        Dữ liệu nhập vào cách nhau bởi dấu phẩy. Mảng A (điểm query X) phải <b>tăng dần</b>. Mảng B (hệ số góc m) phải <b>giảm dần</b>.
+    </div>
+    <div class="input-row">
+        <div class="input-group">
+            <label>Array A (Queries x, ↑):</label>
+            <input type="text" id="inputA" value="1, 4, 7, 10, 13, 16, 20" placeholder="e.g. 1, 4, 7, 10...">
+        </div>
+        <div class="input-group">
+            <label>Array B (Slopes m, ↓):</label>
+            <input type="text" id="inputB" value="25, 20, 16, 13, 10, 7, 4" placeholder="e.g. 25, 20, 16, 13...">
+        </div>
+        <button id="btnApplyCustom" class="play" style="white-space: nowrap;">Apply & Run</button>
+    </div>
+</div>
+
+<div class="main-container">
+    <div class="left-panel">
+        <div class="canvas-container">
+            <canvas id="vizCanvas"></canvas>
+        </div>
+        <div class="deque-container" id="dequeUI">
+            <span class="label">Deque (Front → Back):</span>
+        </div>
+        <div class="log-panel" id="logUI">
+            Waiting to start...
+        </div>
+    </div>
+
+    <div class="right-panel">
+        <div class="pseudocode-panel" id="pseudocodeUI">
+            <div style="color: var(--text-muted); margin-bottom: 10px;">// CHT for minimum, monotonic slopes & queries</div>
+            <div class="code-line" id="code-0">function query(x):</div>
+            <div class="code-line" id="code-1">  while deque.size() >= 2 and</div>
+            <div class="code-line" id="code-2">        eval(deque[0], x) >= eval(deque[1], x):</div>
+            <div class="code-line" id="code-3">      deque.pop_front() // Obsolete Line</div>
+            <div class="code-line" id="code-4">  return eval(deque[0], x)</div>
+            <br>
+            <div class="code-line" id="code-5">function insert(m, k):</div>
+            <div class="code-line" id="code-6">  L_new = Line(m, k)</div>
+            <div class="code-line" id="code-7">  while deque.size() >= 2 and</div>
+            <div class="code-line" id="code-8">        is_bad(deque[end-2], deque[end-1], L_new):</div>
+            <div class="code-line" id="code-9">      deque.pop_back() // Redundant Line</div>
+            <div class="code-line" id="code-10">  deque.push_back(L_new)</div>
+        </div>
+        
+        <div class="stats-panel">
+            <div class="stat-box">
+                <div>Current Step (i)</div>
+                <div class="val" id="statStep">0</div>
+            </div>
+            <div class="stat-box">
+                <div>Deque Size</div>
+                <div class="val" id="statSize">0</div>
+            </div>
+            <div class="stat-box">
+                <div>Popped Front</div>
+                <div class="val" id="statPopFront">0</div>
+            </div>
+            <div class="stat-box">
+                <div>Popped Back</div>
+                <div class="val" id="statPopBack">0</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    /* --- CONFIGURATION & THEME COLORS --- */
+    const COLORS = {
+        grid: '#45475a',
+        axis: '#a6adc8',
+        default: '#89b4fa',
+        optimal: '#a6e3a1',
+        redundant: '#f38ba8',
+        obsolete: '#fab387',
+        query: '#cba6f7',
+        hull: 'rgba(255, 255, 255, 0.25)'
+    };
+
+    /* --- DOM ELEMENTS --- */
+    const canvas = document.getElementById('vizCanvas');
+    const ctx = canvas.getContext('2d');
+    const dequeUI = document.getElementById('dequeUI');
+    const logUI = document.getElementById('logUI');
+    
+    // Buttons
+    const btnPlay = document.getElementById('btnPlay');
+    const btnNext = document.getElementById('btnNext');
+    const btnReset = document.getElementById('btnReset');
+    const btnToggleInput = document.getElementById('btnToggleInput');
+    const btnApplyCustom = document.getElementById('btnApplyCustom');
+    const speedSlider = document.getElementById('speedSlider');
+    const customInputPanel = document.getElementById('customInputPanel');
+
+    // Inputs
+    const inputA = document.getElementById('inputA');
+    const inputB = document.getElementById('inputB');
+
+    // Stats
+    const statStep = document.getElementById('statStep');
+    const statSize = document.getElementById('statSize');
+    const statPopFront = document.getElementById('statPopFront');
+    const statPopBack = document.getElementById('statPopBack');
+
+    /* --- STATE VARIABLES --- */
+    let frames = [];
+    let currentFrameIdx = 0;
+    let isPlaying = false;
+    let timer = null;
+
+    // Viewport scaling limits
+    let maxX = 1, maxY = 1;
+
+    /* --- CORE ALGORITHM & DATASET GENERATION --- */
+    
+    // Parse input string to number array
+    function parseArray(str) {
+        return str.split(',').map(s => parseFloat(s.trim())).filter(n => !isNaN(n));
+    }
+
+    function generateDataset() {
+        for(let attempt = 0; attempt < 50; attempt++) {
+            let A = [1], B = [30];
+            for(let i = 1; i < 7; i++) {
+                A.push(A[i-1] + Math.floor(Math.random() * 4) + 2);
+                B.push(B[i-1] - Math.floor(Math.random() * 4) - 1);
+            }
+            if (B[B.length-1] < 0) continue;
+            
+            let res = simulateCHT(A, B);
+            if (res.popsFront >= 1 && res.popsBack >= 1 && res.finalSize >= 3) {
+                return { A, B };
+            }
+        }
+        return { A: [1, 4, 7, 10, 13, 16, 20], B: [25, 20, 16, 13, 10, 7, 4] };
+    }
+
+    // Helper: intersection x-coordinate of two lines
+    function intersectX(l1, l2) {
+        return (l2.k - l1.k) / (l1.m - l2.m);
+    }
+
+    function simulateCHT(A, B) {
+        let testFrames = [];
+        let deque = [];
+        let dp = [0]; 
+        let lineId = 0;
+        let pF = 0, pB = 0;
+
+        let L0 = { m: B[0], k: dp[0], id: lineId++ };
+        deque.push(L0);
+        testFrames.push({
+            type: 'INSERT_DONE', i: 0, x: A[0], deque: [...deque], newLine: null,
+            code: 10, log: `Base step (i=0): Inserted initial line L${L0.id} (m=${L0.m}, k=${L0.k})`,
+            pF, pB
+        });
+
+        for(let i = 1; i < A.length; i++) {
+            let x = A[i];
+
+            testFrames.push({
+                type: 'QUERY_START', i, x, deque: [...deque],
+                code: 0, log: `--- Step ${i} ---<br><span>Querying x = ${x}</span> to calculate dp[${i}].`, pF, pB
+            });
+
+            // 1. QUERY (Pop front)
+            while(deque.length >= 2) {
+                let y1 = deque[0].m * x + deque[0].k;
+                let y2 = deque[1].m * x + deque[1].k;
+                
+                testFrames.push({
+                    type: 'QUERY_CHECK', i, x, deque: [...deque], l1: deque[0], l2: deque[1],
+                    code: 2, log: `Evaluating at x=${x}: L${deque[0].id} yields ${y1}, L${deque[1].id} yields ${y2}.`, pF, pB
+                });
+
+                if (y2 <= y1) {
+                    let popped = deque.shift();
+                    pF++;
+                    testFrames.push({
+                        type: 'QUERY_POP', i, x, deque: [...deque], obsolete: popped,
+                        code: 3, log: `L${deque[1] ? deque[1].id : ''} is better/equal. <span>Popping obsolete L${popped.id} from front.</span>`, pF, pB
+                    });
+                } else {
+                    break;
+                }
+            }
+
+            let opt = deque[0];
+            dp[i] = opt.m * x + opt.k;
+            testFrames.push({
+                type: 'QUERY_DONE', i, x, deque: [...deque], opt,
+                code: 4, log: `Optimal line found: <span>L${opt.id}</span>. Calculated dp[${i}] = ${dp[i]}.`, pF, pB
+            });
+
+            // 2. INSERT (Pop back)
+            let L_new = { m: B[i], k: dp[i], id: lineId++ };
+            testFrames.push({
+                type: 'INSERT_START', i, x, deque: [...deque], newLine: L_new,
+                code: 6, log: `Preparing to insert new Line <span>L${L_new.id}</span> (m=${L_new.m}, k=${L_new.k}).`, pF, pB
+            });
+
+            while(deque.length >= 2) {
+                let l1 = deque[deque.length - 2];
+                let l2 = deque[deque.length - 1];
+                let ix12 = intersectX(l1, l2);
+                let ix13 = intersectX(l1, L_new);
+
+                testFrames.push({
+                    type: 'INSERT_CHECK', i, x, deque: [...deque], newLine: L_new, l1, l2, ix12, ix13,
+                    code: 8, log: `Intersection checks: x(L${l1.id}, L${l2.id}) = ${ix12.toFixed(1)}, x(L${l1.id}, L_new) = ${ix13.toFixed(1)}.`, pF, pB
+                });
+
+                if (ix13 <= ix12) {
+                    let popped = deque.pop();
+                    pB++;
+                    testFrames.push({
+                        type: 'INSERT_POP', i, x, deque: [...deque], newLine: L_new, bad: popped,
+                        code: 9, log: `Intersection x(L${l1.id}, L_new) ≤ x(L${l1.id}, L${l2.id}). <span>L${popped.id} is redundant (is_bad = true). Popping back.</span>`, pF, pB
+                    });
+                } else {
+                    break;
+                }
+            }
+            deque.push(L_new);
+            testFrames.push({
+                type: 'INSERT_DONE', i, x, deque: [...deque], newLine: null,
+                code: 10, log: `Successfully added <span>L${L_new.id}</span> to the back of the Deque.`, pF, pB
+            });
+        }
+
+        return { 
+            frames: testFrames, 
+            popsFront: pF, 
+            popsBack: pB, 
+            finalSize: deque.length,
+            maxDp: dp[dp.length-1],
+            maxA: A[A.length-1]
+        };
+    }
+
+    /* --- CANVAS RENDERING --- */
+    function resizeCanvas() {
+        const rect = canvas.parentElement.getBoundingClientRect();
+        canvas.width = rect.width;
+        canvas.height = rect.height;
+        if (frames.length > 0) drawFrame(frames[currentFrameIdx]);
+    }
+    window.addEventListener('resize', resizeCanvas);
+
+    function drawFrame(frame) {
+        if (!frame) return;
+        
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        const pad = 40;
+        const w = canvas.width;
+        const h = canvas.height;
+
+        const mapX = (x) => pad + (x / maxX) * (w - 2 * pad);
+        const mapY = (y) => h - pad - (y / maxY) * (h - 2 * pad);
+
+        // Draw Axes & Grid
+        ctx.strokeStyle = COLORS.grid;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        for (let i = 0; i <= 5; i++) {
+            let xPos = mapX((maxX / 5) * i);
+            let yPos = mapY((maxY / 5) * i);
+            ctx.moveTo(xPos, pad); ctx.lineTo(xPos, h - pad);
+            ctx.moveTo(pad, yPos); ctx.lineTo(w - pad, yPos);
+        }
+        ctx.stroke();
+
+        ctx.strokeStyle = COLORS.axis;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(pad, pad); ctx.lineTo(pad, h - pad); ctx.lineTo(w - pad, h - pad);
+        ctx.stroke();
+
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(pad, pad, w - 2 * pad, h - 2 * pad);
+        ctx.clip();
+
+        // Envelope Hull
+        if (frame.deque.length > 0) {
+            ctx.beginPath();
+            ctx.strokeStyle = COLORS.hull;
+            ctx.lineWidth = 8;
+            ctx.lineJoin = 'round';
+            for (let i = 0; i < frame.deque.length; i++) {
+                let startX = i === 0 ? 0 : intersectX(frame.deque[i-1], frame.deque[i]);
+                let endX = i === frame.deque.length - 1 ? maxX : intersectX(frame.deque[i], frame.deque[i+1]);
+                startX = Math.max(0, startX);
+                endX = Math.min(maxX, endX);
+                if (startX > maxX || endX < 0) continue;
+                let sy = frame.deque[i].m * startX + frame.deque[i].k;
+                let ey = frame.deque[i].m * endX + frame.deque[i].k;
+                if (i === 0) ctx.moveTo(mapX(startX), mapY(sy));
+                else ctx.lineTo(mapX(startX), mapY(sy));
+                ctx.lineTo(mapX(endX), mapY(ey));
+            }
+            ctx.stroke();
+        }
+
+        const drawMathLine = (line, color, dash = [], width = 2) => {
+            let yAt0 = line.k;
+            let yAtMax = line.m * maxX + line.k;
+            ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = width;
+            ctx.setLineDash(dash);
+            ctx.moveTo(mapX(0), mapY(yAt0)); ctx.lineTo(mapX(maxX), mapY(yAtMax));
+            ctx.stroke(); ctx.setLineDash([]); 
+        };
+
+        // Lines
+        frame.deque.forEach(line => {
+            let isOpt = (frame.opt && frame.opt.id === line.id);
+            let isCheck = (frame.l1 && frame.l1.id === line.id) || (frame.l2 && frame.l2.id === line.id);
+            let color = isOpt ? COLORS.optimal : COLORS.default;
+            let width = (isOpt || isCheck) ? 3 : 2;
+            drawMathLine(line, color, [], width);
+        });
+
+        if (frame.obsolete) drawMathLine(frame.obsolete, COLORS.obsolete, [], 4);
+        if (frame.bad) drawMathLine(frame.bad, COLORS.redundant, [], 4);
+        if (frame.newLine) drawMathLine(frame.newLine, COLORS.optimal, [10, 5], 3);
+
+        if (frame.type === 'INSERT_CHECK') {
+            const drawDot = (lx, color) => {
+                let ly = frame.l1.m * lx + frame.l1.k;
+                ctx.beginPath(); ctx.fillStyle = color;
+                ctx.arc(mapX(lx), mapY(ly), 6, 0, Math.PI*2); ctx.fill();
+            };
+            drawDot(frame.ix12, COLORS.redundant);
+            drawDot(frame.ix13, COLORS.optimal);
+        }
+
+        if (frame.x !== undefined && frame.x > 0) {
+            let cX = mapX(frame.x);
+            ctx.beginPath(); ctx.strokeStyle = COLORS.query; ctx.lineWidth = 2;
+            ctx.setLineDash([5, 5]); ctx.moveTo(cX, pad); ctx.lineTo(cX, h - pad);
+            ctx.stroke(); ctx.setLineDash([]);
+
+            ctx.fillStyle = COLORS.query; ctx.font = '12px sans-serif';
+            ctx.fillText(`x = ${frame.x}`, cX + 5, h - pad - 10);
+
+            const drawEvalDot = (l) => {
+                let ey = l.m * frame.x + l.k;
+                ctx.beginPath(); ctx.fillStyle = COLORS.query;
+                ctx.arc(cX, mapY(ey), 6, 0, Math.PI*2); ctx.fill();
+            };
+            if (frame.type === 'QUERY_CHECK') { drawEvalDot(frame.l1); drawEvalDot(frame.l2); }
+            else if (frame.opt) { drawEvalDot(frame.opt); }
+        }
+        ctx.restore();
+    }
+
+    /* --- UI UPDATES --- */
+    function updateUI(frame) {
+        if (!frame) return;
+        statStep.innerText = frame.i; statSize.innerText = frame.deque.length;
+        statPopFront.innerText = frame.pF; statPopBack.innerText = frame.pB;
+        logUI.innerHTML = frame.log;
+
+        document.querySelectorAll('.code-line').forEach(el => el.classList.remove('active'));
+        if (frame.code !== undefined) {
+            const codeEl = document.getElementById(`code-${frame.code}`);
+            if(codeEl) codeEl.classList.add('active');
+        }
+
+        dequeUI.innerHTML = '<span class="label">Deque:</span>';
+        if (frame.deque.length === 0) dequeUI.innerHTML += `<span style="color:var(--text-muted)">[Empty]</span>`;
+        
+        frame.deque.forEach(line => {
+            let color = (frame.opt && frame.opt.id === line.id) ? COLORS.optimal : COLORS.default;
+            dequeUI.innerHTML += `<div class="line-card" style="border-color: ${color}"><strong>L${line.id}</strong><span>m:${line.m}</span><span>k:${line.k}</span></div>`;
+        });
+
+        if (frame.obsolete) dequeUI.innerHTML = dequeUI.innerHTML.replace('<span class="label">Deque:</span>', `<span class="label">Deque:</span><div class="line-card" style="border-color: ${COLORS.obsolete}; opacity:0.6; text-decoration:line-through;"><strong>L${frame.obsolete.id}</strong><span>Popping</span></div>`);
+        if (frame.bad) dequeUI.innerHTML += `<div class="line-card" style="border-color: ${COLORS.redundant}; opacity:0.6; text-decoration:line-through;"><strong>L${frame.bad.id}</strong><span>Popping</span></div>`;
+        if (frame.type === 'INSERT_START' || frame.type === 'INSERT_CHECK') dequeUI.innerHTML += `<div class="line-card" style="border-color: ${COLORS.optimal}; border-style: dashed;"><strong>L${frame.newLine.id}</strong><span>New</span></div>`;
+    }
+
+    /* --- ANIMATION CONTROLLER --- */
+    function renderCurrent() {
+        if (currentFrameIdx >= frames.length) { pause(); currentFrameIdx = frames.length - 1; }
+        const frame = frames[currentFrameIdx];
+        drawFrame(frame); updateUI(frame);
+    }
+
+    function stepForward() {
+        if (currentFrameIdx < frames.length - 1) { currentFrameIdx++; renderCurrent(); }
+        else pause();
+    }
+
+    function play() {
+        if (currentFrameIdx >= frames.length - 1) currentFrameIdx = 0;
+        isPlaying = true;
+        btnPlay.innerText = "Pause";
+        btnPlay.style.backgroundColor = 'var(--obsolete)';
+        timer = setInterval(stepForward, parseInt(speedSlider.max) - parseInt(speedSlider.value) + 100);
+    }
+
+    function pause() {
+        isPlaying = false;
+        btnPlay.innerText = "Start Visualization";
+        btnPlay.style.backgroundColor = 'var(--optimal)';
+        clearInterval(timer);
+    }
+
+    function initSimulation(customData = null) {
+        pause();
+        let data = customData ? customData : generateDataset();
+        let sim = simulateCHT(data.A, data.B);
+        
+        frames = sim.frames; currentFrameIdx = 0;
+        maxX = sim.maxA * 1.1; maxY = sim.maxDp * 1.3; 
+        
+        // Update input boxes to reflect current running data
+        inputA.value = data.A.join(', ');
+        inputB.value = data.B.join(', ');
+
+        resizeCanvas(); renderCurrent();
+    }
+
+    /* --- EVENT LISTENERS --- */
+    btnPlay.addEventListener('click', () => isPlaying ? pause() : play());
+    btnNext.addEventListener('click', () => { pause(); stepForward(); });
+    btnReset.addEventListener('click', () => initSimulation()); // Random
+    speedSlider.addEventListener('input', () => { if (isPlaying) { pause(); play(); } });
+    
+    // Toggle Custom Input Panel
+    btnToggleInput.addEventListener('click', () => {
+        customInputPanel.classList.toggle('hidden');
+        btnToggleInput.classList.toggle('play');
+        btnToggleInput.classList.toggle('outline');
+    });
+
+    // Apply Custom Data
+    btnApplyCustom.addEventListener('click', () => {
+        let arrA = parseArray(inputA.value);
+        let arrB = parseArray(inputB.value);
+
+        if (arrA.length === 0 || arrB.length === 0 || arrA.length !== arrB.length) {
+            alert("Lỗi: Mảng A và mảng B phải có độ dài bằng nhau và không được bỏ trống."); return;
+        }
+
+        for(let i = 1; i < arrA.length; i++) {
+            if (arrA[i] <= arrA[i-1]) {
+                alert(`Lỗi tại mảng A: Phần tử thứ ${i+1} (${arrA[i]}) phải lớn hơn phần tử trước đó (${arrA[i-1]}). A phải đơn điệu tăng.`);
+                return;
+            }
+            if (arrB[i] > arrB[i-1]) {
+                alert(`Lỗi tại mảng B: Phần tử thứ ${i+1} (${arrB[i]}) phải nhỏ hơn hoặc bằng phần tử trước đó (${arrB[i-1]}). B phải đơn điệu giảm.`);
+                return;
+            }
+        }
+        
+        initSimulation({ A: arrA, B: arrB });
+    });
+
+    document.addEventListener('keydown', (e) => {
+        // Only trigger Spacebar step if user is not typing in the input fields
+        if (e.code === 'Space' && e.target !== inputA && e.target !== inputB) {
+            e.preventDefault(); pause(); stepForward();
+        }
+    });
+
+    // Startup
+    initSimulation();
+
+</script>
+</body>
+</html>

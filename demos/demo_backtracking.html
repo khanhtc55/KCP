@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Backtracking Visualizer: Binary Strings</title>
+    <style>
+        /* CSS: Dark Mode Theme & Layout */
+        :root {
+            --bg-color: #11111b;
+            --panel-bg: #1e1e2e;
+            --text-color: #cdd6f4;
+            --text-muted: #a6adc8;
+            
+            /* State Colors */
+            --color-default: #45475a;     /* Unexplored */
+            --color-stack: #89b4fa;       /* Blue: On recursion stack */
+            --color-current: #f9e2af;     /* Yellow: Actively processing */
+            --color-solution: #a6e3a1;    /* Green: Valid completed solution */
+            
+            --color-edge: #313244;
+            --accent: #cba6f7;            /* Purple */
+        }
+
+        body {
+            margin: 0;
+            padding: 15px;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100vh;
+            box-sizing: border-box;
+            overflow-x: hidden;
+        }
+
+        h1 { margin: 0 0 15px 0; font-size: 1.6rem; color: var(--accent); }
+
+        .main-container {
+            display: flex;
+            gap: 15px;
+            max-width: 1400px;
+            width: 100%;
+            height: calc(100vh - 70px);
+            justify-content: center;
+        }
+
+        /* Left: Canvas Area */
+        .visual-container {
+            background-color: var(--panel-bg);
+            border-radius: 12px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.5);
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            flex-grow: 1;
+            min-width: 600px;
+        }
+
+        .canvas-wrapper {
+            flex-grow: 1;
+            background-color: #11111b;
+            border-radius: 8px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        .status-bar {
+            width: 100%;
+            padding: 12px;
+            background-color: #313244;
+            border-radius: 6px;
+            font-weight: bold;
+            text-align: center;
+            min-height: 24px;
+            box-sizing: border-box;
+            color: var(--color-current);
+            font-size: 1.05rem;
+            transition: color 0.3s;
+        }
+
+        /* Right Panel: Controls, Data & Pseudocode */
+        .side-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            width: 380px;
+            overflow-y: auto;
+        }
+
+        .panel-box {
+            background-color: var(--panel-bg);
+            border-radius: 12px;
+            padding: 15px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.5);
+        }
+
+        /* Controls */
+        .controls { display: flex; flex-wrap: wrap; gap: 8px; }
+        
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            width: 100%;
+            margin-bottom: 5px;
+        }
+
+        button {
+            flex: 1 1 30%;
+            background-color: var(--accent);
+            color: #11111b;
+            border: none;
+            padding: 8px;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        button:hover { opacity: 0.8; }
+        button:disabled {
+            background-color: var(--color-edge);
+            color: var(--text-muted);
+            cursor: not-allowed;
+        }
+
+        input[type="number"] {
+            width: 50px;
+            padding: 5px;
+            border-radius: 4px;
+            border: 1px solid var(--color-edge);
+            background-color: #11111b;
+            color: var(--text-color);
+            text-align: center;
+        }
+
+        .slider-wrapper {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            font-size: 0.85rem;
+        }
+
+        /* Stats */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            font-size: 0.9rem;
+        }
+        .stat-item {
+            background-color: #11111b;
+            padding: 8px;
+            border-radius: 6px;
+            text-align: center;
+        }
+        .stat-value { font-size: 1.2rem; font-weight: bold; color: var(--accent); margin-top: 4px; }
+        .stat-str { color: var(--color-current); letter-spacing: 2px; }
+
+        /* Solutions Panel */
+        .solutions-panel {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+        }
+        .solutions-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 10px;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+        .solution-badge {
+            background-color: rgba(166, 227, 161, 0.2);
+            color: var(--color-solution);
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 1rem;
+            font-weight: bold;
+            border: 1px solid var(--color-solution);
+        }
+
+        /* Pseudocode */
+        .pseudocode {
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 0.8rem;
+            background-color: #11111b;
+            padding: 10px;
+            border-radius: 6px;
+            margin: 0;
+            list-style: none;
+        }
+        .pseudocode li { padding: 4px 6px; border-radius: 4px; margin-bottom: 2px; color: var(--text-muted); }
+        .pseudocode li.active {
+            background-color: rgba(203, 166, 247, 0.2);
+            color: var(--text-color);
+            border-left: 3px solid var(--accent);
+            font-weight: bold;
+        }
+
+        /* Legend */
+        .legend { display: flex; flex-wrap: wrap; gap: 10px; font-size: 0.8rem; }
+        .legend-item { display: flex; align-items: center; gap: 6px; }
+        .color-box { width: 12px; height: 12px; border-radius: 3px; }
+    </style>
+</head>
+<body>
+
+    <h1>Backtracking Visualizer: Binary Strings (Length <span id="titleN">3</span>)</h1>
+
+    <div class="main-container">
+        <div class="visual-container">
+            <div class="canvas-wrapper" id="canvasWrapper">
+                <canvas id="treeCanvas"></canvas>
+            </div>
+            <div id="explanationLog" class="status-bar">Set N and click "Start" to begin.</div>
+        </div>
+
+        <div class="side-panel">
+            
+            <div class="panel-box controls">
+                <div class="control-group">
+                    <label for="inputN">String Length (n):</label>
+                    <input type="number" id="inputN" min="1" max="5" value="3">
+                </div>
+                <div style="display: flex; gap: 5px; width: 100%;">
+                    <button id="btnStart">Start</button>
+                    <button id="btnPause" disabled>Pause</button>
+                    <button id="btnReset">Reset</button>
+                </div>
+                
+                <div class="slider-wrapper" style="margin-top: 10px;">
+                    <label for="speedSlider">Animation Delay: <span id="speedLabel">500ms</span></label>
+                    <input type="range" id="speedSlider" min="10" max="1500" value="500" dir="rtl">
+                </div>
+                <div style="width: 100%; font-size: 0.75rem; color: var(--text-muted); text-align: center; margin-top: 5px;">
+                    Press <b>SPACE</b> to execute one step.
+                </div>
+            </div>
+
+            <div class="panel-box">
+                <h3 style="margin: 0 0 10px 0; font-size: 1rem;">Live Statistics</h3>
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <div>Calls</div>
+                        <div class="stat-value" id="statCalls">0</div>
+                    </div>
+                    <div class="stat-item">
+                        <div>Depth (pos)</div>
+                        <div class="stat-value" id="statDepth">0</div>
+                    </div>
+                    <div class="stat-item" style="grid-column: span 2;">
+                        <div>Current String</div>
+                        <div class="stat-value stat-str" id="statString">""</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel-box">
+                <h3 style="margin: 0 0 10px 0; font-size: 1rem;">Pseudocode</h3>
+                <ul class="pseudocode">
+                    <li id="p1">Generate(pos, str):</li>
+                    <li id="p2">&nbsp;&nbsp;IF pos == n:</li>
+                    <li id="p3">&nbsp;&nbsp;&nbsp;&nbsp;Output str</li>
+                    <li id="p4">&nbsp;&nbsp;&nbsp;&nbsp;RETURN</li>
+                    <li id="p5">&nbsp;&nbsp;str[pos] = '0'</li>
+                    <li id="p6">&nbsp;&nbsp;Generate(pos + 1, str)</li>
+                    <li id="p7">&nbsp;&nbsp;str[pos] = '1'</li>
+                    <li id="p8">&nbsp;&nbsp;Generate(pos + 1, str)</li>
+                </ul>
+            </div>
+
+            <div class="panel-box solutions-panel">
+                <h3 style="margin: 0; font-size: 1rem; display: flex; justify-content: space-between;">
+                    Generated Solutions
+                    <span id="statSolutions" style="color: var(--color-solution)">0</span>
+                </h3>
+                <div class="solutions-container" id="solutionsContainer">
+                    </div>
+            </div>
+
+            <div class="panel-box legend">
+                <div class="legend-item"><div class="color-box" style="background: var(--color-default);"></div> Unexplored</div>
+                <div class="legend-item"><div class="color-box" style="background: var(--color-current);"></div> Current Node</div>
+                <div class="legend-item"><div class="color-box" style="background: var(--color-stack);"></div> On Stack</div>
+                <div class="legend-item"><div class="color-box" style="background: var(--color-solution);"></div> Solution</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Configuration & DOM ---
+        const STATE_DEFAULT = 0;
+        const STATE_STACK = 1;
+        const STATE_CURRENT = 2;
+        const STATE_SOLUTION = 3;
+
+        const colors = {
+            [STATE_DEFAULT]: '#45475a',
+            [STATE_STACK]: '#89b4fa',
+            [STATE_CURRENT]: '#f9e2af',
+            [STATE_SOLUTION]: '#a6e3a1',
+            text: '#11111b',
+            edge: '#313244'
+        };
+
+        const canvas = document.getElementById('treeCanvas');
+        const ctx = canvas.getContext('2d');
+        const wrapper = document.getElementById('canvasWrapper');
+        
+        const btnStart = document.getElementById('btnStart');
+        const btnPause = document.getElementById('btnPause');
+        const btnReset = document.getElementById('btnReset');
+        const inputN = document.getElementById('inputN');
+        const speedSlider = document.getElementById('speedSlider');
+        const speedLabel = document.getElementById('speedLabel');
+        const explanationLog = document.getElementById('explanationLog');
+        const titleN = document.getElementById('titleN');
+        
+        const statCalls = document.getElementById('statCalls');
+        const statDepth = document.getElementById('statDepth');
+        const statString = document.getElementById('statString');
+        const statSolutions = document.getElementById('statSolutions');
+        const solutionsContainer = document.getElementById('solutionsContainer');
+
+        // --- Global State ---
+        let N = 3;
+        let treeNodes = {};
+        let treeEdges = [];
+        let callCount = 0;
+        let solutionsCount = 0;
+        
+        let isRunning = false;
+        let isPaused = false;
+        let stepRequested = false;
+        let abortController = null;
+        let speedMs = 500;
+
+        // --- Resize & Canvas Setup ---
+        function resizeCanvas() {
+            canvas.width = wrapper.clientWidth;
+            canvas.height = wrapper.clientHeight;
+            if (!isRunning && !isPaused) generateTreeLayout();
+            drawTree();
+        }
+        window.addEventListener('resize', resizeCanvas);
+
+        // --- Tree Generation (Precomputing Layout) ---
+        function generateTreeLayout() {
+            treeNodes = {};
+            treeEdges = [];
+            solutionsContainer.innerHTML = '';
+            
+            const w = canvas.width;
+            const h = canvas.height;
+            
+            // Calculate dimensions based on depth
+            const startY = 40;
+            const ySpacing = Math.min((h - 80) / N, 80);
+            
+            // Recursive layout builder
+            function buildLayout(depth, prefix, x, dx) {
+                treeNodes[prefix] = {
+                    id: prefix,
+                    x: x,
+                    y: startY + depth * ySpacing,
+                    state: STATE_DEFAULT,
+                    depth: depth
+                };
+
+                if (depth < N) {
+                    const leftX = x - dx;
+                    const rightX = x + dx;
+                    
+                    treeEdges.push({ parent: prefix, child: prefix + '0', label: '0' });
+                    treeEdges.push({ parent: prefix, child: prefix + '1', label: '1' });
+                    
+                    buildLayout(depth + 1, prefix + '0', leftX, dx / 2);
+                    buildLayout(depth + 1, prefix + '1', rightX, dx / 2);
+                }
+            }
+
+            // Start layout generation
+            const initialDx = w / 4;
+            buildLayout(0, "", w / 2, initialDx);
+            drawTree();
+        }
+
+        // --- Rendering ---
+        function drawTree() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Dynamically scale nodes based on depth
+            const radius = Math.max(12, 24 - N * 2); 
+
+            // Draw Edges
+            ctx.lineWidth = 2;
+            treeEdges.forEach(edge => {
+                const p = treeNodes[edge.parent];
+                const c = treeNodes[edge.child];
+                
+                // Color edge if child is on stack or current
+                if (c.state !== STATE_DEFAULT) {
+                    ctx.strokeStyle = colors[STATE_STACK];
+                    ctx.setLineDash([]);
+                } else {
+                    ctx.strokeStyle = colors.edge;
+                    ctx.setLineDash([4, 4]); // Dashed for unexplored
+                }
+
+                ctx.beginPath();
+                ctx.moveTo(p.x, p.y);
+                ctx.lineTo(c.x, c.y);
+                ctx.stroke();
+                
+                // Draw edge labels (0 or 1)
+                ctx.setLineDash([]);
+                const midX = (p.x + c.x) / 2;
+                const midY = (p.y + c.y) / 2;
+                ctx.fillStyle = c.state !== STATE_DEFAULT ? '#cdd6f4' : '#6c7086';
+                ctx.font = 'bold 12px sans-serif';
+                
+                // Offset label slightly
+                const offsetX = edge.label === '0' ? -10 : 10;
+                ctx.fillText(edge.label, midX + offsetX, midY - 5);
+            });
+
+            // Draw Nodes
+            Object.values(treeNodes).forEach(node => {
+                ctx.beginPath();
+                ctx.arc(node.x, node.y, radius, 0, Math.PI * 2);
+                ctx.fillStyle = colors[node.state];
+                ctx.fill();
+                ctx.strokeStyle = '#1e1e2e';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                // If node is current/stack/solution, or tree is small enough, draw its string
+                if (N <= 4 || node.state !== STATE_DEFAULT) {
+                    ctx.fillStyle = (node.state === STATE_DEFAULT) ? '#cdd6f4' : colors.text;
+                    ctx.font = `bold ${radius * 0.7}px monospace`;
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    
+                    // Display root as 'ε' (epsilon) for empty string, else the string
+                    const displayStr = node.id === "" ? "ε" : node.id;
+                    ctx.fillText(displayStr, node.x, node.y);
+                }
+            });
+        }
+
+        function updateUI(codeStep, msg, colorVar) {
+            drawTree();
+
+            // Stats Update
+            statCalls.innerText = callCount;
+            statSolutions.innerText = solutionsCount;
+
+            // Pseudocode Highlights
+            document.querySelectorAll('.pseudocode li').forEach(li => li.classList.remove('active'));
+            if (codeStep) {
+                document.getElementById(`p${codeStep}`).classList.add('active');
+            }
+
+            // Msg Log
+            if (msg) {
+                explanationLog.innerHTML = msg;
+                explanationLog.style.color = colorVar || `var(--color-current)`;
+            }
+        }
+
+        // --- Execution Controller ---
+        async function yieldControl(signal) {
+            while (true) {
+                if (signal && signal.aborted) throw new Error("Aborted");
+                if (!isPaused) { await new Promise(r => setTimeout(r, speedMs)); return; }
+                if (stepRequested) { stepRequested = false; return; }
+                await new Promise(r => setTimeout(r, 50)); 
+            }
+        }
+
+        // --- Backtracking Algorithm ---
+        async function runBacktracking() {
+            try {
+                // Initialize execution
+                callCount = 0;
+                solutionsCount = 0;
+                solutionsContainer.innerHTML = '';
+                
+                // Launch recursive function
+                await generateBT(0, "");
+                
+                // Completion
+                updateUI(null, `<b>Algorithm Complete!</b> Found all ${solutionsCount} solutions.`, `var(--color-solution)`);
+                finishRun();
+
+            } catch (err) {
+                if (err.message !== "Aborted") console.error(err);
+            }
+        }
+
+        // Recursive backtracking function mapped to async for visualization
+        async function generateBT(pos, currentString) {
+            callCount++;
+            statDepth.innerText = pos;
+            statString.innerText = currentString === "" ? "ε" : currentString;
+            
+            const nodeId = currentString;
+            
+            // Mark entering node
+            treeNodes[nodeId].state = STATE_CURRENT;
+            updateUI(1, `Generate(pos: ${pos}, str: "${currentString}"): Entering recursive call.`);
+            await yieldControl(abortController.signal);
+
+            // Base case check
+            updateUI(2, `Checking base case: Is pos (${pos}) == n (${N})?`);
+            await yieldControl(abortController.signal);
+
+            if (pos === N) {
+                // Solution found!
+                solutionsCount++;
+                treeNodes[nodeId].state = STATE_SOLUTION;
+                
+                // Add to solutions panel
+                const solDiv = document.createElement('div');
+                solDiv.className = 'solution-badge';
+                solDiv.innerText = currentString;
+                solutionsContainer.appendChild(solDiv);
+                solutionsContainer.scrollTop = solutionsContainer.scrollHeight;
+
+                updateUI(3, `<b>Yes!</b> Reached length ${N}. Outputting solution: <b>${currentString}</b>`, `var(--color-solution)`);
+                await yieldControl(abortController.signal);
+                
+                updateUI(4, `Returning from pos ${pos}.`);
+                await yieldControl(abortController.signal);
+                
+                // Leave marked as solution, don't revert to stack color
+                return;
+            }
+
+            // Not base case, move current to stack color
+            treeNodes[nodeId].state = STATE_STACK;
+
+            // Choice 1: Append '0'
+            updateUI(5, `str[${pos}] = '0'`);
+            await yieldControl(abortController.signal);
+            
+            updateUI(6, `Recursing deeper to Generate(${pos + 1}, "${currentString}0")`);
+            await yieldControl(abortController.signal);
+            
+            await generateBT(pos + 1, currentString + "0");
+            
+            // Backtracked from 0
+            statDepth.innerText = pos;
+            statString.innerText = currentString === "" ? "ε" : currentString;
+            treeNodes[nodeId].state = STATE_CURRENT;
+            updateUI(null, `Backtracked to pos ${pos}. String is back to "${currentString}".`);
+            await yieldControl(abortController.signal);
+            treeNodes[nodeId].state = STATE_STACK;
+
+            // Choice 2: Append '1'
+            updateUI(7, `str[${pos}] = '1'`);
+            await yieldControl(abortController.signal);
+            
+            updateUI(8, `Recursing deeper to Generate(${pos + 1}, "${currentString}1")`);
+            await yieldControl(abortController.signal);
+            
+            await generateBT(pos + 1, currentString + "1");
+            
+            // Backtracked from 1
+            statDepth.innerText = pos;
+            statString.innerText = currentString === "" ? "ε" : currentString;
+            treeNodes[nodeId].state = STATE_CURRENT;
+            updateUI(null, `Backtracked to pos ${pos}. Explored both branches.`);
+            await yieldControl(abortController.signal);
+
+            // Revert state on return
+            treeNodes[nodeId].state = STATE_DEFAULT;
+        }
+
+        function finishRun() {
+            isRunning = false;
+            isPaused = false;
+            btnStart.disabled = false;
+            btnStart.innerText = "Start";
+            btnPause.disabled = true;
+            btnPause.innerText = "Pause";
+            inputN.disabled = false;
+        }
+
+        // --- Event Listeners ---
+        btnStart.addEventListener('click', () => {
+            if (!isRunning) {
+                // Apply N constraint and validate
+                let valN = parseInt(inputN.value);
+                if (isNaN(valN) || valN < 1) valN = 1;
+                if (valN > 5) {
+                    valN = 5;
+                    inputN.value = 5;
+                    alert("Length N is capped at 5 to ensure the visual tree fits on screen.");
+                }
+                
+                if (N !== valN) {
+                    N = valN;
+                    titleN.innerText = N;
+                    generateTreeLayout();
+                }
+
+                isRunning = true;
+                isPaused = false;
+                btnStart.disabled = true;
+                btnPause.disabled = false;
+                btnPause.innerText = "Pause";
+                inputN.disabled = true;
+                
+                // Reset tree visual states without moving coords
+                Object.values(treeNodes).forEach(n => n.state = STATE_DEFAULT);
+                
+                abortController = new AbortController();
+                runBacktracking();
+            } else if (isPaused) {
+                isPaused = false;
+                btnStart.disabled = true;
+                btnPause.innerText = "Pause";
+                explanationLog.innerText = "Resuming...";
+            }
+        });
+
+        btnPause.addEventListener('click', () => {
+            if (isRunning && !isPaused) {
+                isPaused = true;
+                btnStart.disabled = false;
+                btnStart.innerText = "Resume";
+                btnPause.innerText = "Paused";
+                explanationLog.style.color = "var(--color-stack)";
+                explanationLog.innerText = "Paused. Press Resume or SPACE to step.";
+            }
+        });
+
+        btnReset.addEventListener('click', () => {
+            if (abortController) abortController.abort();
+            finishRun();
+            statCalls.innerText = "0";
+            statDepth.innerText = "0";
+            statString.innerText = '""';
+            statSolutions.innerText = "0";
+            titleN.innerText = inputN.value;
+            N = parseInt(inputN.value);
+            generateTreeLayout();
+            updateUI(null, "Visualization Reset. Ready to start.", "var(--text-color)");
+        });
+
+        inputN.addEventListener('change', (e) => {
+            if (!isRunning) {
+                let valN = parseInt(e.target.value);
+                if (valN >= 1 && valN <= 5) {
+                    N = valN;
+                    titleN.innerText = N;
+                    generateTreeLayout();
+                }
+            }
+        });
+
+        speedSlider.addEventListener('input', (e) => {
+            speedMs = parseInt(e.target.value);
+            speedLabel.innerText = speedMs + "ms";
+        });
+
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') {
+                e.preventDefault(); 
+                if (isRunning) {
+                    isPaused = true;
+                    btnStart.disabled = false;
+                    btnStart.innerText = "Resume";
+                    btnPause.innerText = "Paused";
+                    stepRequested = true;
+                }
+            }
+        });
+
+        // Initialize setup on load
+        setTimeout(() => {
+            resizeCanvas();
+            generateTreeLayout();
+        }, 100);
+
+    </script>
+</body>
+</html>

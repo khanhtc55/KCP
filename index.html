@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Slide &amp; Demo thuật toán</title>
+<meta name="description" content="Slide bài giảng và demo trực quan các thuật toán">
+<style>
+  :root{--bg:#f6f7f9;--card:#fff;--text:#1c2430;--muted:#667085;--line:#e3e6eb;--accent:#2f6fed;--slides:#2f6fed;--demos:#12a37f}
+  @media (prefers-color-scheme:dark){:root{--bg:#10141a;--card:#181e27;--text:#e6e9ef;--muted:#98a2b3;--line:#272f3b;--accent:#6b9bff;--slides:#6b9bff;--demos:#3dd1a8}}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  .wrap{max-width:1000px;margin:0 auto;padding:40px 16px 64px}
+  h1{margin:0 0 4px;font-size:1.9rem}
+  .sub{color:var(--muted);margin:0 0 24px}
+  .bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:28px}
+  input[type=search]{flex:1 1 260px;padding:10px 14px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--text);font:inherit}
+  input[type=search]:focus{outline:2px solid var(--accent);border-color:transparent}
+  .tabs{display:flex;gap:6px}
+  .tab{padding:8px 14px;border:1px solid var(--line);border-radius:999px;background:var(--card);color:var(--text);font:inherit;font-size:.9rem;cursor:pointer}
+  .tab[aria-pressed=true]{background:var(--accent);border-color:var(--accent);color:#fff}
+  h2{font-size:1.15rem;margin:28px 0 12px;display:flex;align-items:center;gap:8px}
+  h2 .count{font-size:.8rem;font-weight:400;color:var(--muted)}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
+  .card{display:block;padding:16px 18px;background:var(--card);border:1px solid var(--line);border-left:4px solid var(--c);border-radius:12px;color:inherit;text-decoration:none;transition:transform .12s,box-shadow .12s}
+  .card:hover,.card:focus-visible{transform:translateY(-2px);box-shadow:0 6px 18px rgba(0,0,0,.12);outline:none}
+  .card[data-type=slides]{--c:var(--slides)}
+  .card[data-type=demos]{--c:var(--demos)}
+  .badge{font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:var(--c);font-weight:600}
+  .card h3{margin:4px 0 0;font-size:1.02rem;line-height:1.35}
+  .card p{margin:6px 0 0;color:var(--muted);font-size:.88rem}
+  .empty{color:var(--muted);padding:24px 0}
+  footer{margin-top:48px;color:var(--muted);font-size:.85rem}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Slide &amp; Demo thuật toán</h1>
+  <p class="sub">Chọn slide bài giảng hoặc demo chạy thuật toán.</p>
+  <div class="bar">
+    <input id="q" type="search" placeholder="Tìm theo tên…" aria-label="Tìm kiếm" autofocus>
+    <div class="tabs" role="group" aria-label="Lọc loại">
+      <button class="tab" data-f="all" aria-pressed="true">Tất cả</button>
+      <button class="tab" data-f="slides" aria-pressed="false">Slide</button>
+      <button class="tab" data-f="demos" aria-pressed="false">Demo</button>
+    </div>
+  </div>
+  <div id="out"></div>
+  <footer>Thêm file .html vào <code>slides/</code> hoặc <code>demos/</code> rồi push — trang chủ tự cập nhật.</footer>
+</div>
+<script src="manifest.js"></script>
+<script>
+const ITEMS = window.ITEMS || [];
+const SECTIONS = [["slides","Slide bài giảng","Slide"],["demos","Demo thuật toán","Demo"]];
+const out = document.getElementById("out"), q = document.getElementById("q");
+let filter = "all";
+
+const norm = s => s.normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/đ/g,"d").toLowerCase();
+
+function render(){
+  const term = norm(q.value.trim());
+  out.textContent = "";
+  let any = false;
+  for (const [type, heading, badge] of SECTIONS){
+    if (filter !== "all" && filter !== type) continue;
+    const list = ITEMS.filter(i => i.type === type && norm(i.title + " " + i.description).includes(term));
+    if (!list.length) continue;
+    any = true;
+    const h = document.createElement("h2");
+    h.append(heading);
+    const c = document.createElement("span"); c.className = "count"; c.textContent = `(${list.length})`;
+    h.append(c);
+    const grid = document.createElement("div"); grid.className = "grid";
+    for (const i of list){
+      const a = document.createElement("a");
+      a.className = "card"; a.href = i.url; a.dataset.type = type;
+      const b = document.createElement("span"); b.className = "badge"; b.textContent = badge;
+      const t = document.createElement("h3"); t.textContent = i.title;
+      a.append(b, t);
+      if (i.description){ const p = document.createElement("p"); p.textContent = i.description; a.append(p); }
+      grid.append(a);
+    }
+    out.append(h, grid);
+  }
+  if (!any){ const e = document.createElement("div"); e.className = "empty"; e.textContent = "Không tìm thấy kết quả."; out.append(e); }
+}
+
+q.addEventListener("input", render);
+document.querySelectorAll(".tab").forEach(btn => btn.addEventListener("click", () => {
+  filter = btn.dataset.f;
+  document.querySelectorAll(".tab").forEach(b => b.setAttribute("aria-pressed", b === btn));
+  render();
+}));
+render();
+</script>
+</body>
+</html>
